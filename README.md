@@ -1,4 +1,4 @@
-### Just some fix to convert NCNN model followd by Triple Mu
+### Just some fix to convert NCNN model followed by Triple Mu
 
 <div align="center">
   <p>
