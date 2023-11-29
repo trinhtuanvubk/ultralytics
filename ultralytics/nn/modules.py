@@ -395,20 +395,29 @@ class Detect(nn.Module):
         self.cv3 = nn.ModuleList(nn.Sequential(Conv(x, c3, 3), Conv(c3, c3, 3), nn.Conv2d(c3, self.nc, 1)) for x in ch)
         self.dfl = DFL(self.reg_max) if self.reg_max > 1 else nn.Identity()
 
-    def forward(self, x):
-        shape = x[0].shape  # BCHW
-        for i in range(self.nl):
-            x[i] = torch.cat((self.cv2[i](x[i]), self.cv3[i](x[i])), 1)
-        if self.training:
-            return x
-        elif self.dynamic or self.shape != shape:
-            self.anchors, self.strides = (x.transpose(0, 1) for x in make_anchors(x, self.stride, 0.5))
-            self.shape = shape
+    # def forward(self, x):
+    #     shape = x[0].shape  # BCHW
+    #     for i in range(self.nl):
+    #         x[i] = torch.cat((self.cv2[i](x[i]), self.cv3[i](x[i])), 1)
+    #     if self.training:
+    #         return x
+    #     elif self.dynamic or self.shape != shape:
+    #         self.anchors, self.strides = (x.transpose(0, 1) for x in make_anchors(x, self.stride, 0.5))
+    #         self.shape = shape
 
-        box, cls = torch.cat([xi.view(shape[0], self.no, -1) for xi in x], 2).split((self.reg_max * 4, self.nc), 1)
-        dbox = dist2bbox(self.dfl(box), self.anchors.unsqueeze(0), xywh=True, dim=1) * self.strides
-        y = torch.cat((dbox, cls.sigmoid()), 1)
-        return y if self.export else (y, x)
+    #     box, cls = torch.cat([xi.view(shape[0], self.no, -1) for xi in x], 2).split((self.reg_max * 4, self.nc), 1)
+    #     dbox = dist2bbox(self.dfl(box), self.anchors.unsqueeze(0), xywh=True, dim=1) * self.strides
+    #     y = torch.cat((dbox, cls.sigmoid()), 1)
+    #     return y if self.export else (y, x)
+
+    def forward(self, x):
+        z = []  # inference output
+        for i in range(self.nl):
+            boxes = self.cv2[i](x[i]).permute(0, 2, 3, 1)
+            scores = self.cv3[i](x[i]).sigmoid().permute(0, 2, 3, 1)
+            feat = torch.cat((boxes, scores), -1)
+            z.append(feat)
+        return tuple(z)
 
     def bias_init(self):
         # Initialize Detect() biases, WARNING: requires stride availability
